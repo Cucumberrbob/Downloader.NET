@@ -56,16 +56,7 @@ public class BaseTest
 
                                      await File.WriteAllTextAsync(Path.Combine(_root, "test.bin"), sb.ToString());
                                  }
-                                 else
-                                 {
-                                     var ct = context.Request.GetTypedHeaders();
-                                     rangeFrom = (Int32?) ct.Range!.Ranges.First().From;
-                                     rangeTo = (Int32?) ct.Range!.Ranges.First().To;
-
-                                     key = $"{rangeFrom}-{rangeTo}";
-
-                                     retries.TryAdd(key, 0);
-                                 }
+                                 
 
                                  if (options.ServerRequestTimeout > 0)
                                  {
@@ -74,6 +65,25 @@ public class BaseTest
                                  
                                  var file = await File.ReadAllBytesAsync(Path.Combine(_root, "test.bin"));
 
+                                 
+                                 if (context.Request.Method == "GET")
+                                 {
+                                     var ct = context.Request.GetTypedHeaders();
+                                     rangeFrom = (Int32?) ct.Range!.Ranges.First().From;
+                                     rangeTo = (Int32?) ct.Range!.Ranges.First().To;
+
+                                     key = $"{rangeFrom}-{rangeTo}";
+
+                                     retries.TryAdd(key, 0);
+                                     
+                                     if (rangeFrom.HasValue && rangeTo.HasValue && rangeTo.Value >= file.Length)
+                                     {
+                                         context.Response.StatusCode = StatusCodes.Status416RangeNotSatisfiable;
+                                         context.Response.Headers.ContentRange = $"bytes */{file.Length}";
+                                         return;
+                                     }
+                                 }
+                                 
                                  if (rangeFrom.HasValue && rangeTo.HasValue)
                                  {
                                      file = file.AsSpan(rangeFrom.Value, rangeTo.Value - rangeFrom.Value).ToArray();
